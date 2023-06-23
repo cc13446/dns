@@ -6,6 +6,6 @@
 #define DNS_CONFIG_H
 
 extern char* dnsServerIp;
-extern char* filePath;
+extern char* hijackFilepath;
 
 #endif //DNS_CONFIG_H
