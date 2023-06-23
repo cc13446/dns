@@ -5,4 +5,6 @@ set(CMAKE_C_STANDARD 11)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/target)
 
-add_executable(dns main.c)
+aux_source_directory(. DIR_SRCS)
+
+add_executable(dns ${DIR_SRCS} config.h)
