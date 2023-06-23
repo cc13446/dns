@@ -7,4 +7,4 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/target)
 
 aux_source_directory(. DIR_SRCS)
 
-add_executable(dns ${DIR_SRCS} config.h)
+add_executable(dns ${DIR_SRCS} config.h main.h file.h file.c)

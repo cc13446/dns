@@ -1,8 +1,11 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
+#include "main.h"
 #include "debug.h"
 #include "config.h"
+#include "file.h"
 
 char* dnsServerIp = "192.168.1.1";
 char* hijackFilepath = "./dns.conf";
@@ -34,6 +37,15 @@ int main(int argc, char *argv[]) {
         }
     }
     printf("Start with debugLevel = %d, dnsServerIp = %s, hijackFilepath = %s\n", debugLevel, dnsServerIp, hijackFilepath);
-
+    dbg("Config is ready")
+    doDns();
     return 0;
+}
+
+void doDns() {
+    char* hijackFileContent = readAllContent(hijackFilepath);
+    dbg("Read from hijackFilePath : \n%s", hijackFileContent)
+
+    free(hijackFileContent);
+    ddbg("free hijackFileContent")
 }
