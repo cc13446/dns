@@ -12,6 +12,7 @@
 #include "debug.h"
 #include "config.h"
 #include "file.h"
+#include "packet.h"
 
 #define BUFFER_SIZE 4196
 
