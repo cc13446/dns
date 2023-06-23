@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
+#include <string.h>
 
 #include "file.h"
 #include "debug.h"
@@ -12,9 +14,9 @@
 char* readAllContent(char* filePath) {
     ddbg("Read from file %s", filePath)
     int fd = open(filePath, O_RDONLY);
-    if (fd == -1) {
-        printf("Open file %s fail, exit", filePath);
-        exit(1);
+    if (fd < 0) {
+        printf("Open file %s fail, code %d %s", filePath, errno, strerror(errno));
+        exit(errno);
     }
     ddbg("Open file success")
     long length = lseek(fd,0,SEEK_END);

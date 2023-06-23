@@ -7,8 +7,8 @@
 
 #define debug 1
 #define dbg_print
-#define dbg(format, ...) if(debug) if (debugLevel > 0) { printf("%s %s File %s Line %d : ", __DATE__, __TIME__, __FILE__, __LINE__);printf(format, ##__VA_ARGS__);printf("\n");}
-#define ddbg(format, ...) if(debug) if (debugLevel > 1) { printf("%s %s File %s Line %d : ", __DATE__, __TIME__, __FILE__, __LINE__);printf(format, ##__VA_ARGS__);printf("\n");};
+#define dbg(format, ...) if(debug) if (debugLevel > 0) { printf("%s %s File %s Line %d : ", __DATE__, __TIME__, __FILE__, __LINE__);printf(format, ##__VA_ARGS__);printf("\r\n");}
+#define ddbg(format, ...) if(debug) if (debugLevel > 1) { printf("%s %s File %s Line %d : ", __DATE__, __TIME__, __FILE__, __LINE__);printf(format, ##__VA_ARGS__);printf("\r\n");}
 
 extern short debugLevel;
 
