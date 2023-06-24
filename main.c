@@ -16,6 +16,7 @@
 #include "packet.h"
 #include "hashmap.h"
 #include "id.h"
+#include "lru.h"
 
 #define BUFFER_SIZE 4196
 
