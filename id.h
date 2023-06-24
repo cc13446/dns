@@ -10,9 +10,10 @@ typedef struct ClientId {
     uint32_t ip;
     uint16_t port;
     uint16_t id;
-    long deadline;
+    time_t deadline;
 } ClientId;
 
 void freeClientId(void* id);
+int timeoutClientId(void* id);
 
 #endif //DNS_ID_H

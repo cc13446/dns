@@ -24,6 +24,8 @@ char* hijackFilepath = "./dns.conf";
 
 int stop = 0;
 
+time_t lastTimeout = 0;
+
 int main(int argc, char *argv[]) {
 
     // 初始化
@@ -111,7 +113,7 @@ void doDns() {
         exit(-1);
     }
 
-    for (; !stop; usleep(500 * 1000)) {
+    for (; !stop; ) {
         fd_set readyFdSet = readFdSet;
         dbg("Server waiting socket count %d", FD_SETSIZE)
         int selectRes = select(FD_SETSIZE, &readyFdSet, (fd_set *)NULL, (fd_set *)NULL, (struct timeval *) NULL);
@@ -182,8 +184,14 @@ void doDns() {
                 }
                 rmHashTable(idTable, key);
             }
-
             free(packet);
+
+            // remove timeoutClientId client
+            if(time(NULL) - lastTimeout > 30) {
+                int res = rmHashTableWithCondition(idTable, timeoutClientId, 500);
+                dbg("Timeout clientId, num %d", res)
+                lastTimeout = time(NULL);
+            }
         }
     }
 

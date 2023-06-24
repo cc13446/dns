@@ -2,7 +2,7 @@
 // Created by cc on 23-6-24.
 //
 
-#define TABLE_SIZE (1024*1024)
+#define TABLE_SIZE (1000)
 
 #include <stddef.h>
 #include <stdlib.h>
@@ -14,12 +14,13 @@ static void initKV(struct kv* kv) {
     kv->next = NULL;
     kv->key = NULL;
     kv->value = NULL;
-    kv->free_value = NULL;
+    kv->freeValue = NULL;
 }
+
 static void freeKV(struct kv* kv) {
     if (kv) {
-        if (kv->free_value) {
-            kv->free_value(kv->value);
+        if (kv->freeValue) {
+            kv->freeValue(kv->value);
         }
         free(kv->key);
         kv->key = NULL;
@@ -70,7 +71,7 @@ void freeHashTable(HashTable* ht)
     }
 }
 
-int putHashTable(HashTable* ht, char* key, void* value, void(*free_value)(void*))
+int putHashTable(HashTable* ht, char* key, void* value, void(*freeValue)(void*))
 {
     unsigned int i = hash33(key) % TABLE_SIZE;
     struct kv* p = ht->table[i];
@@ -78,11 +79,11 @@ int putHashTable(HashTable* ht, char* key, void* value, void(*free_value)(void*)
 
     while (p) { /* if key is already stored, update its value */
         if (strcmp(p->key, key) == 0) {
-            if (p->free_value) {
-                p->free_value(p->value);
+            if (p->freeValue) {
+                p->freeValue(p->value);
             }
             p->value = value;
-            p->free_value = free_value;
+            p->freeValue = freeValue;
             break;
         }
         prep = p;
@@ -105,7 +106,7 @@ int putHashTable(HashTable* ht, char* key, void* value, void(*free_value)(void*)
         strcpy(keyStr, key);
         kv->key = keyStr;
         kv->value = value;
-        kv->free_value = free_value;
+        kv->freeValue = freeValue;
 
         if (prep == NULL) {
             ht->table[i] = kv;
@@ -149,4 +150,31 @@ void rmHashTable(HashTable* ht, char* key) {
             p = p->next;
         }
     }
+}
+
+int rmHashTableWithCondition(HashTable* ht, int(*rmCondition)(void*), long batch) {
+    int res = 0;
+    batch = batch > TABLE_SIZE ? TABLE_SIZE : batch;
+    long rand = random() % (TABLE_SIZE - batch);
+    for (long i = rand; i < rand + batch && i < TABLE_SIZE; i++) {
+        struct kv* p = ht->table[i];
+        struct kv* prep = p;
+        while (p) {
+            if (rmCondition(p->value) != 0) {
+                if (p == prep) {
+                    ht->table[i] = NULL;
+                } else {
+                    prep->next = p->next;
+                }
+                struct kv * temp = p->next;
+                freeKV(p);
+                res++;
+                p = temp;
+            } else {
+                prep = p;
+                p = p->next;
+            }
+        }
+    }
+    return res;
 }
