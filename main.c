@@ -115,7 +115,9 @@ void doDns() {
             }
             char addr[16] = {0};
             inet_ntop(AF_INET, &sockaddrIn.sin_addr.s_addr, addr, INET_ADDRSTRLEN);
-            ddbg("Receive packet from %s:%d Data:%s", addr,  ntohs(sockaddrIn.sin_port), buf)
+            ddbg("Decoder to dns packet")
+            struct DnsPacket* packet = decoder(buf);
+            ddbg("Receive packet from %s:%d %c", addr,  ntohs(sockaddrIn.sin_port), getQR(packet))
         }
     }
 }

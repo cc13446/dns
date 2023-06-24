@@ -7,8 +7,6 @@
 
 #include <stdint.h>
 
-
-
 struct DnsHeader {
     uint16_t id;
     uint16_t flags;
@@ -41,5 +39,10 @@ struct DnsPacket{
     struct DnsOther* additional;
 
 };
+
+struct DnsPacket* decoder(void* buf);
+void freePacket(struct DnsPacket* packet);
+void getReadableName(const char* src, char* dst, size_t len);
+char getQR(struct DnsPacket* packet);
 
 #endif //DNS_PACKET_H
