@@ -37,8 +37,6 @@ void freeLRUCache(LRUCache *cache);
 void setLRUCache(LRUCache *cache, char *key, void *data, size_t dataLen, time_t ttl);
 size_t getLRUCache(LRUCache* cache, char *key, void *dst);
 
-void printLRUCache(LRUCache* cache);
-
 int clearTimeoutLRUCache(LRUCache* cache);
 
 #endif //DNS_LRU_H

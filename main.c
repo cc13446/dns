@@ -266,7 +266,8 @@ void doDns() {
     }
 
     freeHashTable(idTable);
-    ddbg("Free id Table");
+    ddbg("Free id Table")
+    freeLRUCache(cache);
 }
 
 
