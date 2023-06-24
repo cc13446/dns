@@ -7,12 +7,15 @@
 #include <errno.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <time.h>
 
 #include "main.h"
 #include "debug.h"
 #include "config.h"
 #include "file.h"
 #include "packet.h"
+#include "hashmap.h"
+#include "id.h"
 
 #define BUFFER_SIZE 4196
 
@@ -102,6 +105,12 @@ void doDns() {
     dnsServerAddr.sin_port = htons(53);
     dbg("Create dns server addr success")
 
+    HashTable* idTable = newHashTable();
+    if (idTable == NULL) {
+        printf("Create id table fail");
+        exit(-1);
+    }
+
     for (; !stop; usleep(500 * 1000)) {
         fd_set readyFdSet = readFdSet;
         dbg("Server waiting socket count %d", FD_SETSIZE)
@@ -130,14 +139,56 @@ void doDns() {
             struct DnsPacket* packet = decoder(buf);
             ddbg("Receive packet from %s:%d %c", addr,  ntohs(sockaddrIn.sin_port), getQR(packet))
 
-
             if ('Q' == getQR(packet)) {
-                sendto(s, buf, r, 0, (struct sockaddr *)&dnsServerAddr, sizeof(dnsServerAddr));
+                uint16_t id = random();
+                char* key = malloc(32 * sizeof(char));
+                memset(key, 0, 32);
+                sprintf(key, "%d", id);
+                ClientId* value = malloc(sizeof(ClientId));
+                value->id = packet->header.id;
+                value->ip = sockaddrIn.sin_addr.s_addr;
+                value->port = sockaddrIn.sin_port;
+                value->deadline = time(NULL) + 60;
+                putHashTable(idTable, key, value, freeClientId);
+                ddbg("Random id %d", id)
+                setPacketId(buf, htons(id));
+                long sendRes = sendto(s, buf, r, 0, (struct sockaddr *)&dnsServerAddr, sizeof(dnsServerAddr));
+                if (sendRes < 0) {
+                    dbg("Send to server fail, code %d %s", errno, strerror(errno))
+                    rmHashTable(idTable, key);
+                }
+            } else {
+                uint16_t id = packet->header.id;
+                char key[32];
+                memset(key, 0, 32);
+                sprintf(key, "%d", id);
+                ddbg("Receive id %d", id)
+                ClientId* value = (ClientId *) getHashTable(idTable, key);
+                if (value == NULL) {
+                    dbg("Ignore R packet with no client")
+                    continue;
+                }
+                ddbg("Get value %d", value->id)
+                struct sockaddr_in clientAddr;
+                memset(&clientAddr, 0, sizeof(clientAddr));
+                clientAddr.sin_family = AF_INET;
+                clientAddr.sin_addr.s_addr = value->ip;
+                clientAddr.sin_port = value->port;
+                dbg("Create client addr success")
+                setPacketId(buf, htons(value->id));
+                long sendRes = sendto(s, buf, r, 0, (struct sockaddr *)&clientAddr, sizeof(clientAddr));
+                if (sendRes < 0) {
+                    dbg("Send to client fail, code %d %s", errno, strerror(errno))
+                }
+                rmHashTable(idTable, key);
             }
 
             free(packet);
         }
     }
+
+    freeHashTable(idTable);
+    ddbg("Free id Table");
 }
 
 

@@ -45,4 +45,7 @@ void freePacket(struct DnsPacket* packet);
 void getReadableName(const char* src, char* dst, size_t len);
 char getQR(struct DnsPacket* packet);
 
+// 设置dns报文的事务id
+void setPacketId(void* buf, uint16_t id);
+
 #endif //DNS_PACKET_H

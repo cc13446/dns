@@ -7,4 +7,5 @@
 
 void doDns();
 void signalHandler(int sig);
+
 #endif //DNS_MAIN_H

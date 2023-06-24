@@ -132,6 +132,12 @@ void freePacket(struct DnsPacket* packet) {
     }
     free(packet->additional);
 }
+
 char getQR(struct DnsPacket* packet) {
     return (packet->header.flags & 0x8000) == 0 ? 'Q' : 'R';
+}
+
+void setPacketId(void* buf, uint16_t id) {
+    struct DnsHeader* header = (struct DnsHeader*) buf;
+    header->id = id;
 }
