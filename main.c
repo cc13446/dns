@@ -91,6 +91,17 @@ void doDns() {
 
     char buf[BUFFER_SIZE];
 
+    struct sockaddr_in dnsServerAddr;
+    memset(&dnsServerAddr, 0, sizeof(dnsServerAddr));
+    dnsServerAddr.sin_family = AF_INET;
+    int hostTransRes = inet_pton(AF_INET, dnsServerIp, &dnsServerAddr.sin_addr.s_addr);
+    if (hostTransRes != 1) {
+        printf("Bad dnsServerIp %s", dnsServerIp);
+        exit(hostTransRes);
+    }
+    dnsServerAddr.sin_port = htons(53);
+    dbg("Create dns server addr success")
+
     for (; !stop; usleep(500 * 1000)) {
         fd_set readyFdSet = readFdSet;
         dbg("Server waiting socket count %d", FD_SETSIZE)
@@ -118,6 +129,13 @@ void doDns() {
             ddbg("Decoder to dns packet")
             struct DnsPacket* packet = decoder(buf);
             ddbg("Receive packet from %s:%d %c", addr,  ntohs(sockaddrIn.sin_port), getQR(packet))
+
+
+            if ('Q' == getQR(packet)) {
+                sendto(s, buf, r, 0, (struct sockaddr *)&dnsServerAddr, sizeof(dnsServerAddr));
+            }
+
+            free(packet);
         }
     }
 }

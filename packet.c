@@ -9,19 +9,32 @@
 #include "debug.h"
 
 
-size_t decoderOther(struct DnsOther* other, void* buf, uint16_t len) {
+size_t decoderOther(struct DnsOther* other, void* buf, void* sourceBuf, uint16_t len) {
     size_t offset = 0;
     other = malloc(sizeof(struct DnsOther) * len);
     for (int i = 0; i < len; i++) {
-        size_t nameLen = strlen((const char *) buf) + 1;
-        other[i].name = malloc(sizeof (char) * nameLen);
-        memcpy(other[i].name, buf, nameLen * sizeof (char));
+        if ((*(uint8_t *)buf) == 0xc0) {
+            buf += sizeof(uint8_t);
+            offset += sizeof(uint8_t);
+            uint8_t off = *(uint8_t *)buf;
+            buf += sizeof(uint8_t);
+            offset += sizeof(uint8_t);
+            void* b = sourceBuf + off;
+            size_t l = strlen((const char *) b) + 1;
+            other[i].name = malloc(sizeof(char) * l);
+            memcpy(other[i].name, b, l * sizeof(char));
+        } else {
+            size_t l = strlen((const char *) buf) + 1;
+            other[i].name = malloc(sizeof(char) * l);
+            memcpy(other[i].name, buf, l * sizeof(char));
+            buf += l * sizeof (char);
+            offset += l * sizeof (char);
+        }
+        size_t nameLen = strlen(other[i].name) + 1;
         char readableName[nameLen];
         getReadableName(other[i].name, readableName, nameLen - 1);
         ddbg("Other name %ld %s", strlen(readableName), readableName)
 
-        buf += nameLen * sizeof (char);
-        offset += nameLen * sizeof (char);
         other[i].type = ntohs(*((uint16_t *) buf));
         buf += sizeof (uint16_t);
         offset += sizeof (uint16_t);
@@ -34,8 +47,9 @@ size_t decoderOther(struct DnsOther* other, void* buf, uint16_t len) {
         other[i].length = ntohs(*((uint16_t *) buf));
         buf += sizeof (uint16_t);
         offset += sizeof (uint16_t);
-        other[i].resource = malloc(sizeof (char) * other[i].length);
+        other[i].resource = malloc(sizeof(char) * other[i].length);
         memcpy(other[i].resource, buf, other[i].length * sizeof (char));
+        buf += other[i].length * sizeof (char);
         offset += other[i].length * sizeof (char);
         ddbg("Decoder dns resource %s %d %d %d", readableName, other[i].type, other[i].class, other[i].length)
     }
@@ -43,6 +57,7 @@ size_t decoderOther(struct DnsOther* other, void* buf, uint16_t len) {
 }
 
 struct DnsPacket* decoder(void* buf) {
+    void* sourceBuf = buf;
     struct DnsPacket* res = malloc(sizeof(struct DnsPacket));
     struct DnsHeader* tempHeader = (struct DnsHeader*) buf;
     res->header.id = ntohs(tempHeader->id);
@@ -73,11 +88,11 @@ struct DnsPacket* decoder(void* buf) {
     }
 
     size_t offset;
-    offset = decoderOther(res->answers, buf, res->header.answerCount);
+    offset = decoderOther(res->answers, buf, sourceBuf, res->header.answerCount);
     buf += offset;
-    offset = decoderOther(res->authorities, buf, res->header.authorityCount);
+    offset = decoderOther(res->authorities, buf, sourceBuf, res->header.authorityCount);
     buf += offset;
-    decoderOther(res->additional, buf, res->header.additionalCount);
+    decoderOther(res->additional, buf, sourceBuf, res->header.additionalCount);
 
     return res;
 }
@@ -85,9 +100,10 @@ struct DnsPacket* decoder(void* buf) {
 void getReadableName(const char* src, char* dst, size_t len) {
     memset(dst, 0, len + 1);
     for (int i = 0; i < len; i++) {
-        if (src[i] > 'a' && src[i] < 'z'
-            || src[i] > 'A' && src[i] < 'Z'
-            || src[i] > '0' && src[i] < '9') {
+        if ((src[i] >= 'a' && src[i] <= 'z')
+            || (src[i] >= 'A' && src[i] <= 'Z')
+            || (src[i] >= '0' && src[i] <= '9')
+            || src[i] == '-') {
             dst[i] = src[i];
         } else {
             dst[i] = '.';
