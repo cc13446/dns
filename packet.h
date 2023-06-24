@@ -41,11 +41,18 @@ struct DnsPacket{
 };
 
 struct DnsPacket* decoder(void* buf);
+size_t encoder(struct DnsPacket* packet, void* buf);
 void freePacket(struct DnsPacket* packet);
 void getReadableName(const char* src, char* dst, size_t len);
+void getNetName(char* src, char* dst, size_t srcLen);
 char getQR(struct DnsPacket* packet);
 
 // 设置dns报文的事务id
 void setPacketId(void* buf, uint16_t id);
+
+// 根据ip 地址 获取packet
+struct DnsPacket* getAnswerPacker(char* addr, char* ip);
+
+time_t getTTL(struct DnsPacket* packet);
 
 #endif //DNS_PACKET_H

@@ -13,7 +13,7 @@
 
 static void freeList(LRUCache *cache);
 
-static CacheListEntry* initCacheEntry(char *key, char *data, time_t ttl) {
+static CacheListEntry* initCacheEntry(char *key, void *data, size_t dataLen, time_t ttl) {
 
     CacheListEntry* entry = NULL;
     if (NULL == (entry = malloc(sizeof(*entry)))) {
@@ -23,8 +23,10 @@ static CacheListEntry* initCacheEntry(char *key, char *data, time_t ttl) {
     memset(entry, 0, sizeof(*entry));
     entry->key = malloc(strlen(key) + 1);
     strcpy(entry->key,key);
-    entry->value = malloc(strlen(data) + 1);
-    strcpy(entry->value, data);
+
+    entry->value = malloc(dataLen);
+    entry->dataLen = dataLen;
+    memcpy(entry->value, data, dataLen);
     entry->ttl = ttl;
     return entry;
 }
@@ -103,8 +105,14 @@ static CacheListEntry* insertToListHead(LRUCache *cache, CacheListEntry *entry) 
 
     if (cache->cacheSize > cache->cacheCapacity) {
         /* 如果缓存满了, 淘汰最久没有被访问到的缓存数据单元 */
-        removedEntry = cache->listTail;
-        removeFromList(cache, cache->listTail);
+        CacheListEntry *temp = cache->listTail;
+        while(temp && temp->ttl == -1) {
+            temp = temp->listPrev;
+        }
+        if (temp) {
+            removeFromList(cache, temp);
+            removedEntry = temp;
+        }
     }
 
     if (cache->listHead == NULL && cache->listTail == NULL) {
@@ -209,30 +217,36 @@ static void removeEntryFromHashMap(LRUCache *cache, CacheListEntry *entry) {
     if (n) {
         if (n->key == entry->key) {
             cache->hashMap[k] = n->hashListNext;
-            n->hashListNext->hashListPrev = NULL;
+            if (entry->hashListNext) {
+                n->hashListNext->hashListPrev = NULL;
+            }
             return;
         }
     }
 }
 
 
-int setLRUCache(LRUCache *cache, char *key, char *data, time_t ttl) {
+void setLRUCache(LRUCache *cache, char *key, void *data, size_t dataLen, time_t ttl) {
 
     if (ttl != -1 && ttl < time(NULL)) {
-        return 0;
+        return;
     }
 
     /*从哈希表中查找数据是否已经存在缓存中*/
     CacheListEntry *entry = getValueFromHashMap(cache, key);
     if (entry != NULL) {
         /*更新数据， 将该数据更新到链表表头*/
-        strcpy(entry->value, data);
+        void* old = entry->value;
+        entry->value = malloc(dataLen);
+        entry->dataLen = dataLen;
+        memcpy(entry->value, data, dataLen);
+        free(old);
         entry->ttl = ttl;
         updateLRUList(cache, entry);
     } else {
         /*数据没在缓存中*/
         /*新建缓存单元*/
-        entry = initCacheEntry(key, data, ttl);
+        entry = initCacheEntry(key, data, dataLen, ttl);
 
         /*将新建缓存单元插入链表表头*/
         CacheListEntry *removedEntry = insertToListHead(cache, entry);
@@ -244,26 +258,26 @@ int setLRUCache(LRUCache *cache, char *key, char *data, time_t ttl) {
         /*将新建缓存单元插入哈希表*/
         insertEntryToHashMap(cache, entry);
     }
-    return 0;
 }
 
-char* getLRUCache(LRUCache* cache, char *key) {
+size_t getLRUCache(LRUCache* cache, char *key, void *dst) {
     CacheListEntry* entry = getValueFromHashMap(cache, key);
     if (NULL != entry) {
         // TTL 过期
-        if (time(NULL) > entry->ttl) {
+        if (entry->ttl != -1 && time(NULL) > entry->ttl) {
             removeFromList(cache, entry);
             removeEntryFromHashMap(cache, entry);
             freeCacheEntry(entry);
-            return NULL;
+            return 0;
         }
         /*缓存中存在该数据， 更新至链表表头*/
         updateLRUList(cache, entry);
         /*返回数据*/
-        return entry->value;
+        memcpy(dst, entry->value, entry->dataLen);
+        return entry->dataLen;
     } else {
         /*缓存中不存在相关数据*/
-        return NULL;
+        return 0;
     }
 }
 
@@ -277,8 +291,9 @@ int clearTimeoutLRUCache(LRUCache* cache) {
 
     CacheListEntry* entry = cache->listHead;
     while (entry) {
+        ddbg("Scan entry %s %ld", entry->key, entry->ttl)
         CacheListEntry* next = entry->listNext;
-        if (entry->ttl < time(NULL)) {
+        if (entry->ttl != -1 && entry->ttl < time(NULL)) {
             removeFromList(cache, entry);
             removeEntryFromHashMap(cache, entry);
             freeCacheEntry(entry);

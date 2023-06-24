@@ -9,9 +9,10 @@
 
 typedef struct CacheListEntry {
     char* key;
-    char* value;
+    void* value;
 
     time_t ttl;
+    size_t dataLen;
 
     struct CacheListEntry *hashListPrev;   /* 缓存哈希表指针， 指向哈希链表的前一个元素 */
     struct CacheListEntry *hashListNext;   /* 缓存哈希表指针， 指向哈希链表的后一个元素 */
@@ -33,8 +34,8 @@ typedef struct LRUCache {
 LRUCache* initLRUCache(int capacity);
 void freeLRUCache(LRUCache *cache);
 
-int setLRUCache(LRUCache *cache, char *key, char *data, time_t ttl);
-char* getLRUCache(LRUCache* cache, char *key);
+void setLRUCache(LRUCache *cache, char *key, void *data, size_t dataLen, time_t ttl);
+size_t getLRUCache(LRUCache* cache, char *key, void *dst);
 
 void printLRUCache(LRUCache* cache);
 

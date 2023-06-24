@@ -26,6 +26,7 @@ char* hijackFilepath = "./dns.conf";
 int stop = 0;
 
 time_t lastTimeout = 0;
+time_t cacheLastTimeout = 0;
 
 int main(int argc, char *argv[]) {
 
@@ -61,8 +62,47 @@ int main(int argc, char *argv[]) {
 }
 
 void doDns() {
+    // dns buf
+    char buf[BUFFER_SIZE];
+
     char* hijackFileContent = readAllContent(hijackFilepath);
     dbg("Read from hijackFilePath : \n%s", hijackFileContent)
+
+    LRUCache* cache = initLRUCache(500);
+    if (cache == NULL) {
+        printf("Create cache fail");
+        exit(0);
+    }
+    char ipBuf[128], addrBuf[128];
+    char* temp = hijackFileContent;
+    char* pre = temp;
+
+    for(; *temp; temp += sizeof(char)) {
+        if (*temp == '\n') {
+            *temp = 0;
+
+            memset(ipBuf, 0, 128);
+            memset(addrBuf, 0, 128);
+            int res = sscanf(pre, "%s %s", ipBuf, addrBuf);
+            if (res < 0) {
+                continue;
+            }
+
+            ddbg("Read from hijack %s %s", ipBuf, addrBuf)
+            memset(buf, 0, BUFFER_SIZE);
+
+            char netAddrBuf[128];
+            memset(netAddrBuf, 0, 128);
+            getNetName(addrBuf, netAddrBuf, strlen(addrBuf));
+
+            struct DnsPacket* packet = getAnswerPacker(netAddrBuf, ipBuf);
+            size_t len = encoder(packet, buf);
+            freePacket(packet);
+
+            setLRUCache(cache, netAddrBuf, buf, len, -1);
+            pre = temp + sizeof(char);
+        }
+    }
 
     free(hijackFileContent);
     ddbg("Free hijackFileContent")
@@ -95,8 +135,6 @@ void doDns() {
     FD_ZERO(&readFdSet);
     FD_SET(s, &readFdSet);
 
-    char buf[BUFFER_SIZE];
-
     struct sockaddr_in dnsServerAddr;
     memset(&dnsServerAddr, 0, sizeof(dnsServerAddr));
     dnsServerAddr.sin_family = AF_INET;
@@ -113,6 +151,7 @@ void doDns() {
         printf("Create id table fail");
         exit(-1);
     }
+    ddbg("Create idTable success")
 
     for (; !stop; ) {
         fd_set readyFdSet = readFdSet;
@@ -143,6 +182,21 @@ void doDns() {
             ddbg("Receive packet from %s:%d %c", addr,  ntohs(sockaddrIn.sin_port), getQR(packet))
 
             if ('Q' == getQR(packet)) {
+                // cache hit
+                if (packet->header.questionCount == 1) {
+                    char cacheBuf[BUFFER_SIZE];
+                    size_t cacheLen = getLRUCache(cache, packet->questions->name, cacheBuf);
+                    if (cacheLen > 0) {
+                        setPacketId(cacheBuf, htons(packet->header.id));
+                        long sendRes = sendto(s, cacheBuf, cacheLen, 0, (struct sockaddr *)&sockaddrIn, sizeof(sockaddrIn));
+                        dbg("Hit cache %s", packet->questions->name)
+                        if (sendRes < 0) {
+                            dbg("Send to client fail, code %d %s", errno, strerror(errno))
+                        }
+                        goto clear;
+                    }
+                }
+                // cache dont hit
                 uint16_t id = random();
                 char* key = malloc(32 * sizeof(char));
                 memset(key, 0, 32);
@@ -161,6 +215,12 @@ void doDns() {
                     rmHashTable(idTable, key);
                 }
             } else {
+                // cache
+                if (packet->header.questionCount == 1) {
+                    // 默认ttl为0 我加一点
+                    time_t ttl = getTTL(packet) + 60;
+                    setLRUCache(cache, packet->questions->name, buf, r, ttl + time(NULL));
+                }
                 uint16_t id = packet->header.id;
                 char key[32];
                 memset(key, 0, 32);
@@ -185,13 +245,22 @@ void doDns() {
                 }
                 rmHashTable(idTable, key);
             }
-            free(packet);
+
+            clear:
+            freePacket(packet);
 
             // remove timeoutClientId client
             if(time(NULL) - lastTimeout > 30) {
                 int res = rmHashTableWithCondition(idTable, timeoutClientId, 500);
                 dbg("Timeout clientId, num %d", res)
                 lastTimeout = time(NULL);
+            }
+
+            // remove timeout cache
+            if(time(NULL) - cacheLastTimeout > 60) {
+                int res = clearTimeoutLRUCache(cache);
+                dbg("Timeout cache, num %d", res)
+                cacheLastTimeout = time(NULL);
             }
         }
     }
